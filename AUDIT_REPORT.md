@@ -393,24 +393,137 @@ L’audit met en évidence que les principaux problèmes de performance ne sont 
 
 Ces constats serviront de base pour la phase suivante, dédiée à la mise en place d’outils de suivi (monitoring) et aux optimisations applicatives.
 
+---
 
+## 13. Instrumentation et monitoring backend (Grafana)
+
+Afin de compléter l’audit de performance, une instrumentation backend a été mise en place à l’aide de Grafana, basée sur des métriques HTTP collectées au niveau de l’API.
+
+![Dashboard Grafana – Monitoring backend](screenshots/4.1.png)
+
+Le dashboard permet de visualiser en temps réel :
+
+- le volume global de requêtes,
+- la répartition des statuts HTTP (succès, erreurs 4xx/5xx),
+- la latence moyenne globale,
+- la latence moyenne par endpoint,
+- le nombre de requêtes par minute,
+- les endpoints les plus sollicités et les plus lents.
+
+Cette instrumentation fournit une vision claire du comportement réel de l’API sous charge utilisateur.
+
+---
+
+### Analyse des métriques observées
+
+Les métriques collectées mettent en évidence les éléments suivants :
+
+- Le backend présente une **latence moyenne faible** (≈ 10–15 ms), indiquant de bonnes performances serveur.
+- Les endpoints les plus sollicités sont principalement liés au listing des tâches (`/tasks`), ce qui correspond aux parcours utilisateurs identifiés précédemment.
+- Aucun pic significatif d’erreurs 5xx n’est observé, ce qui indique une bonne stabilité de l’API.
+- Le volume de requêtes reste modéré et stable durant les tests.
+
+Ces observations confirment que :
+- le backend n’est pas le facteur limitant principal des performances,
+- les problèmes perçus côté utilisateur sont davantage liés au **volume de données retournées** et au **coût de rendu frontend**, comme observé lors des analyses Lighthouse et DevTools.
 
 
 
 -----
+## 14. Améliorations envisagées suite à l’audit
 
-# Les améliorations envisagées suite à l'audit
-1. **Ajouter une pagination côté backend** (`LIMIT/OFFSET` ou cursor) pour éviter de renvoyer toutes les tâches d’un coup.
-2. **Remplacer `SELECT *` par une sélection de colonnes utiles** pour réduire la taille de réponse (payload).
-3. **Ajouter un paramètre `limit` + tri côté API** (ex : `?limit=50&sort=created_at_desc`) pour maîtriser le volume par défaut.
-4. **Indexer `created_at`** pour accélérer le tri `ORDER BY created_at DESC`.
-5. **Indexer `status` (+ éventuellement `status, created_at`)** pour accélérer les filtres + tri combinés.
-6. **Optimiser la recherche `ILIKE`** (ex : extension `pg_trgm` + index GIN) pour rendre la recherche scalable.
-7. **Mettre en place une route “tasks summary” / “counts” dédiée** (au lieu de recalculer via gros listing) pour limiter les données/traitements.
-8. **Découper le rendu de la liste côté frontend** (componentisation + éviter les computations lourdes au mount).
-9. **Réduire les re-renders Vue** (watchers trop larges, computed non mémoïsés, props instables, clés `v-for` correctes).
-10. **Virtualiser la liste** (afficher seulement les éléments visibles) si beaucoup de tâches.
-11. **Debounce la recherche** pour éviter une requête à chaque frappe.
-12. **Mettre du cache HTTP léger** (ETag / Cache-Control) sur les endpoints de lecture peu changeants.
-13. **Ajouter un monitoring minimal** (latence par route, taux d’erreur, volume) via logs structurés + Grafana (Postgres/Loki).
-14. **Mettre des garde-fous** : taille max de réponse, pagination obligatoire au-delà d’un seuil.
+Objectif : réduire le volume renvoyé par défaut, améliorer la scalabilité des requêtes, et diminuer le coût de rendu côté frontend (constaté via Lighthouse/DevTools), tout en conservant une observabilité simple via Grafana.
+
+
+### 14.1 Backend (API)
+
+1. **Pagination obligatoire sur `/tasks`** (ex: `?limit=50&offset=0` ou cursor)
+    
+    → Évite de renvoyer ~8000 tâches et réduit fortement payload + parsing côté frontend.
+    
+2. **Limiter la réponse par défaut** (`limit` + tri explicite côté API)
+    
+    → Évite les “gros chargements” accidentels, rend le comportement prévisible.
+    
+3. **Remplacer `SELECT *` par une sélection de colonnes utiles** (ex: id, name, status, created_at, time_logged)
+    
+    → Réduit la taille de réponse et accélère le transfert + le traitement.
+    
+4. **Endpoint dédié “summary” / “counts”** (ex: `/tasks/summary` : totals par statut, temps total)
+    
+    → Évite d’utiliser un listing complet pour des stats (moins de données, moins de calculs).
+    
+5. **Cache léger sur endpoints de lecture** (ETag/Cache-Control sur `GET /tasks`, `GET /dashboard`)
+    
+    → Diminue le trafic réseau et les recomputations si les données changent peu.
+    
+6. **Garde-fous API** (limite max, ex: `limit <= 200`, et réponse d’erreur si dépassement)
+    
+    → Empêche les retours “géants” et protège l’API.
+    
+7. **Réduire le “bruit” de monitoring** (exclure `/metrics` des classements “top slow endpoints” ou le filtrer dans Grafana)
+    
+    → Rend les tableaux “Top endpoints” plus exploitables sur les routes métier (`/tasks`, `/dashboard/...`).
+    
+
+---
+
+### 14.2 Base de données (PostgreSQL)
+
+1. **Index sur `created_at`**
+    
+    → Améliore `ORDER BY created_at DESC`, utile avec pagination.
+    
+2. **Index sur `status` + éventuellement index composite `(status, created_at)`**
+    
+    → Accélère les filtres par statut + tri (cas courant sur la liste).
+    
+3. **Recherche scalable sur `ILIKE`** (option : `pg_trgm` + index GIN sur `name`)
+    
+    → Rend la recherche performante même avec beaucoup de lignes.
+    
+4. **Vérifier les requêtes “stats”** (COUNT/SUM) et indexer en fonction des usages
+    
+    → Évite les scans complets lors des agrégations fréquentes (dashboard).
+    
+
+---
+
+### 14.3 Frontend (Vue)
+
+1. **Réduire le coût de rendu initial** (ne pas afficher des milliers d’éléments d’un coup)
+    
+    → Diminue TBT et les long tasks constatés sur la page “Liste des tâches”.
+    
+2. **Virtualisation de la liste** (n’afficher que les éléments visibles)
+    
+    → Très efficace si la liste peut rester grande malgré la pagination.
+    
+3. **Réduire les re-renders** (watchers trop larges, computed coûteux, keys `v-for` stables)
+    
+    → Stabilise les performances lors des filtres / recherches / changements de page.
+    
+4. **Debounce sur la recherche** (ex: 300–500ms)
+    
+    → Évite une requête à chaque frappe et réduit la charge + le jitter UI.
+    
+5. **Chargement progressif / skeleton**
+    
+    → Améliore le ressenti utilisateur sans forcément changer l’API.
+    
+
+---
+
+### 14.4 Observabilité & suivi (Grafana / logs)
+
+1. **Conserver les métriques HTTP** (volume, latence, erreurs) comme baseline avant/après optimisations
+    
+    → Permet de prouver l’impact des changements (mesures objectives).
+    
+2. **Ajouter des percentiles (P95/P99) par route** (si pas déjà)
+    
+    → Détecte les lenteurs “rare mais graves” (plus utile que la moyenne seule).
+    
+3. **Alerting simple (optionnel)** sur taux d’erreur ou latence élevée
+    
+    → Utile pour montrer la logique “monitoring en production” (même en TP).
