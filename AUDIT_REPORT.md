@@ -195,3 +195,37 @@ Ces constats orientent les prochaines étapes de l’audit vers :
 - une analyse Network ciblée des appels API,
 - une inspection des composants Vue impliqués,
 - et des optimisations frontend visant à réduire la charge de rendu et les re-renders inutiles.
+
+---
+## 7. Analyse des performances réseau – DevTools Network
+
+Une analyse des requêtes réseau a été réalisée sur la page *Liste des tâches* à l’aide de l’onglet **Network** des Chrome DevTools, en filtrant les appels XHR et en désactivant le cache.
+
+![alt text](screenshots/2.4.png)
+
+**Observations :**
+- Une seule requête API est déclenchée lors du chargement initial : `GET /tasks`.
+- La requête retourne un statut 200 et un temps de réponse d’environ 143 ms, indiquant une bonne performance côté backend.
+- En revanche, la taille de la réponse est très élevée (≈ 2,2 MB).
+
+**Analyse :**
+- L’absence de multiples appels API exclut un problème de sur-sollicitation du backend.
+- Le temps de réponse faible confirme que la latence réseau et les performances serveur ne sont pas le facteur limitant.
+- Le volume important de données transférées implique un coût significatif côté frontend pour :
+  - le parsing du JSON,
+  - le rendu d’un grand nombre de composants,
+  - les recalculs de layout et de style.
+
+Ces éléments confirment que les problèmes de performance observés sur la page Liste des tâches sont principalement liés à la gestion du volume de données et au rendu frontend, et non à la latence des appels API.
+
+---
+
+### 7.1 Diagnostic intermédiaire
+
+Sur la base des analyses Lighthouse, Performance et Network, on peut constater :
+- l’absence de mécanismes de limitation des données (pagination, filtrage côté backend),
+- combinée à un rendu frontend coûteux sur la page de liste des tâches.
+
+Ces constats orientent naturellement les optimisations à venir vers :
+- la réduction du volume de données retournées par l’API,
+- et l’optimisation du rendu et des composants frontend.
