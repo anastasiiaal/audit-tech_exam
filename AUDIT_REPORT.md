@@ -6,7 +6,6 @@ Ce document présente un audit technique de l’application **TaskWatch**, réal
 
 L’audit suit une démarche structurée en quatre étapes : identification des flux, instrumentation, analyse, puis optimisation.
 
----
 
 ## 2. Vue d’ensemble de l’architecture
 
@@ -19,7 +18,6 @@ TaskWatch repose sur une architecture web en trois couches :
 Flux général :
 Utilisateur → Frontend → Backend → Base de données
 
----
 
 ## 3. Identification des flux applicatifs
 
@@ -38,7 +36,6 @@ L’ensemble de ces flux est illustré dans le schéma ci-dessous, représentant
 
 ![Cartographie des flux applicatifs](screenshots/1.png)
 
----
 
 ## 4. Conclusion de la phase d’identification
 
@@ -47,14 +44,12 @@ Ces flux constituent des **points d’attention prioritaires** pour la suite de 
 
 Ils serviront de base pour la mise en place des indicateurs, la collecte de métriques et le diagnostic détaillé présentés dans les sections suivantes.
 
----
 
 ## 5. Analyse des performances frontend – Lighthouse
 
 Une première analyse des performances frontend a été réalisée à l’aide de **Lighthouse (Chrome DevTools)**, afin d’obtenir une **mesure initiale (baseline)** avant toute optimisation.
 
 
----
 
 ### 5.1 Page "Liste des tâches"
 
@@ -82,7 +77,6 @@ La page principale de l’application (liste des tâches) présente un **score d
 
 Ces éléments suggèrent que la page exécute **trop de logique côté frontend lors du chargement**, probablement liée au rendu de la liste de tâches, aux traitements de données et aux re-renders.
 
----
 
 ### 5.2 Page "Dashboard"
 
@@ -102,7 +96,6 @@ Ces éléments suggèrent que la page exécute **trop de logique côté frontend
 - Aucun blocage du thread principal n’est détecté.
 - La structure de la page, plus synthétique et moins volumineuse, limite naturellement les coûts de rendu et d’exécution JavaScript.
 
----
 
 ### 5.3 Comparaison et premiers constats
 
@@ -119,7 +112,6 @@ La comparaison entre les deux pages met en évidence un **écart significatif de
 
 Ces constats orientent la suite de l’audit vers une analyse plus fine via **DevTools (Network, Performance, Vue DevTools)**, afin d’identifier précisément les causes racines et de cibler les optimisations les plus pertinentes.
 
----
 
 ## 6. Analyse des performances frontend – DevTools Performance
 
@@ -127,7 +119,6 @@ Afin de compléter l’analyse Lighthouse et d’identifier plus précisément l
 
 Les enregistrements ont été effectués lors du chargement initial de chaque page.
 
----
 
 ### 6.1 Page "Liste des tâches"
 
@@ -152,7 +143,6 @@ L’enregistrement de la page *Liste des tâches* met en évidence une **charge 
 
 Ces éléments indiquent que la principale source de dégradation des performances sur cette page est **le coût du rendu et du traitement frontend**, plus que le chargement réseau lui-même.
 
----
 
 ### 6.2 Page "Dashboard"
 
@@ -174,7 +164,6 @@ Ces éléments indiquent que la principale source de dégradation des performanc
 
 Ces éléments expliquent le **score Lighthouse maximal** observé sur cette page.
 
----
 
 ### 6.3 Comparaison et diagnostic frontend
 
@@ -196,7 +185,6 @@ Ces constats orientent les prochaines étapes de l’audit vers :
 - une inspection des composants Vue impliqués,
 - et des optimisations frontend visant à réduire la charge de rendu et les re-renders inutiles.
 
----
 ## 7. Analyse des performances réseau – DevTools Network
 
 Une analyse des requêtes réseau a été réalisée sur la page *Liste des tâches* à l’aide de l’onglet **Network** des Chrome DevTools, en filtrant les appels XHR et en désactivant le cache.
@@ -218,7 +206,6 @@ Une analyse des requêtes réseau a été réalisée sur la page *Liste des tâc
 
 Ces éléments confirment que les problèmes de performance observés sur la page Liste des tâches sont principalement liés à la gestion du volume de données et au rendu frontend, et non à la latence des appels API.
 
----
 
 ### Diagnostic intermédiaire
 
@@ -230,7 +217,6 @@ Ces constats orientent naturellement les optimisations à venir vers :
 - la réduction du volume de données retournées par l’API,
 - et l’optimisation du rendu et des composants frontend.
 
----
 
 ## 8. Analyse base de données - EXPLAIN ANALYZE sur la requête de listing
 
@@ -257,7 +243,6 @@ Un EXPLAIN (ANALYZE, BUFFERS) a été réalisé afin d’analyser le plan d’ex
 - La requête renvoie l’intégralité des tâches, ce qui entraîne un volume de données très important transféré vers le frontend.
 - Ce volume provoque un coût élevé de parsing JSON et de rendu côté frontend, confirmé par les métriques Lighthouse et DevTools (TBT élevé, long tasks).
 
----
 
 ## 9. Points sensibles identifiés et priorisation
 
@@ -274,7 +259,6 @@ Sur la base des analyses réalisées (Lighthouse, DevTools Performance & Network
 - Lighthouse (section 5.1)
 - DevTools Performance (section 6.1)
 
----
 
 ### P1 – Volume de données retournées par l’API `/tasks`
 **Priorité : élevée**
@@ -286,7 +270,6 @@ Sur la base des analyses réalisées (Lighthouse, DevTools Performance & Network
 - DevTools Network (section 7)
 - Corrélation directe avec le TBT élevé.
 
----
 
 ### P2 – Requête SQL de listing non scalable
 **Priorité : moyenne**
@@ -298,7 +281,6 @@ Sur la base des analyses réalisées (Lighthouse, DevTools Performance & Network
 **Preuves :**
 - EXPLAIN (ANALYZE, BUFFERS) (section 8)
 
----
 
 ### P3 – Absence de mécanismes de limitation et de cache
 **Priorité : moyenne**
@@ -309,7 +291,6 @@ Sur la base des analyses réalisées (Lighthouse, DevTools Performance & Network
 **Preuves :**
 - Lighthouse (section 5)
 
----
 
 ## 10. Indicateurs de diagnostic : quoi mesurer, où et comment
 
@@ -325,7 +306,6 @@ Afin de piloter le diagnostic et d’évaluer l’impact des optimisations futur
 - Lighthouse
 - Chrome DevTools (Performance)
 
----
 
 ### Indicateurs réseau / API
 - Temps de réponse par endpoint
@@ -335,7 +315,6 @@ Afin de piloter le diagnostic et d’évaluer l’impact des optimisations futur
 **Outils :**
 - Chrome DevTools (Network)
 
----
 
 ### Indicateurs base de données
 - Type de scan (Seq Scan / Index Scan)
@@ -347,7 +326,6 @@ Afin de piloter le diagnostic et d’évaluer l’impact des optimisations futur
 - EXPLAIN (ANALYZE, BUFFERS)
 - DBeaver / PostgreSQL
 
----
 
 ## 11. Audit de la qualité du code et de l’architecture
 
@@ -365,7 +343,6 @@ Afin de piloter le diagnostic et d’évaluer l’impact des optimisations futur
    - La logique de récupération des tâches est simple mais peu évolutive.
    - Manque de mécanismes pour limiter ou segmenter les données.
 
----
 
 ### Observations frontend
 
@@ -381,7 +358,6 @@ Afin de piloter le diagnostic et d’évaluer l’impact des optimisations futur
    - Le rendu dépend directement du volume de données retourné par l’API.
    - Absence de mécanismes de limitation ou de rendu progressif.
 
----
 
 ## 12. Synthèse intermédiaire
 
@@ -393,7 +369,6 @@ L’audit met en évidence que les principaux problèmes de performance ne sont 
 
 Ces constats serviront de base pour la phase suivante, dédiée à la mise en place d’outils de suivi (monitoring) et aux optimisations applicatives.
 
----
 
 ## 13. Instrumentation et monitoring backend (Grafana)
 
@@ -412,7 +387,6 @@ Le dashboard permet de visualiser en temps réel :
 
 Cette instrumentation fournit une vision claire du comportement réel de l’API sous charge utilisateur.
 
----
 
 ### Analyse des métriques observées
 
@@ -428,8 +402,6 @@ Ces observations confirment que :
 - les problèmes perçus côté utilisateur sont davantage liés au **volume de données retournées** et au **coût de rendu frontend**, comme observé lors des analyses Lighthouse et DevTools.
 
 
-
------
 ## 14. Améliorations envisagées suite à l’audit
 
 Objectif : réduire le volume renvoyé par défaut, améliorer la scalabilité des requêtes, et diminuer le coût de rendu côté frontend (constaté via Lighthouse/DevTools), tout en conservant une observabilité simple via Grafana.
@@ -466,7 +438,6 @@ Objectif : réduire le volume renvoyé par défaut, améliorer la scalabilité d
     → Rend les tableaux “Top endpoints” plus exploitables sur les routes métier (`/tasks`, `/dashboard/...`).
     
 
----
 
 ### 14.2 Base de données (PostgreSQL)
 
@@ -487,7 +458,6 @@ Objectif : réduire le volume renvoyé par défaut, améliorer la scalabilité d
     → Évite les scans complets lors des agrégations fréquentes (dashboard).
     
 
----
 
 ### 14.3 Frontend (Vue)
 
@@ -512,7 +482,6 @@ Objectif : réduire le volume renvoyé par défaut, améliorer la scalabilité d
     → Améliore le ressenti utilisateur sans forcément changer l’API.
     
 
----
 
 ### 14.4 Observabilité & suivi (Grafana / logs)
 
