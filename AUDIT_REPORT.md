@@ -257,6 +257,141 @@ Un EXPLAIN (ANALYZE, BUFFERS) a été réalisé afin d’analyser le plan d’ex
 - La requête renvoie l’intégralité des tâches, ce qui entraîne un volume de données très important transféré vers le frontend.
 - Ce volume provoque un coût élevé de parsing JSON et de rendu côté frontend, confirmé par les métriques Lighthouse et DevTools (TBT élevé, long tasks).
 
+---
+
+## 9. Points sensibles identifiés et priorisation
+
+Sur la base des analyses réalisées (Lighthouse, DevTools Performance & Network, EXPLAIN ANALYZE), plusieurs points sensibles ont été identifiés et priorisés selon leur impact.
+
+### P1 – Performance de la page "Liste des tâches"
+**Priorité : élevée**
+
+- Score Lighthouse faible (54/100).
+- Total Blocking Time très élevé (> 4 s).
+- Nombre important de long tasks côté frontend.
+
+**Preuves :**
+- Lighthouse (section 5.1)
+- DevTools Performance (section 6.1)
+
+---
+
+### P1 – Volume de données retournées par l’API `/tasks`
+**Priorité : élevée**
+
+- Payload réseau très important (~2,2 MB).
+- Une seule requête API, mais renvoyant l’intégralité des tâches.
+
+**Preuves :**
+- DevTools Network (section 7)
+- Corrélation directe avec le TBT élevé.
+
+---
+
+### P2 – Requête SQL de listing non scalable
+**Priorité : moyenne**
+
+- Scan séquentiel complet de la table.
+- Tri en mémoire sur `created_at`.
+- Absence de pagination et d’index exploité.
+
+**Preuves :**
+- EXPLAIN (ANALYZE, BUFFERS) (section 8)
+
+---
+
+### P3 – Absence de mécanismes de limitation et de cache
+**Priorité : moyenne**
+
+- Aucune pagination par défaut.
+- Avertissements Lighthouse sur la gestion du cache des ressources.
+
+**Preuves :**
+- Lighthouse (section 5)
+
+---
+
+## 10. Indicateurs de diagnostic : quoi mesurer, où et comment
+
+Afin de piloter le diagnostic et d’évaluer l’impact des optimisations futures, plusieurs indicateurs ont été identifiés.
+
+### Indicateurs frontend
+- First Contentful Paint (FCP)
+- Largest Contentful Paint (LCP)
+- Total Blocking Time (TBT)
+- Nombre et durée des long tasks
+
+**Outils :**
+- Lighthouse
+- Chrome DevTools (Performance)
+
+---
+
+### Indicateurs réseau / API
+- Temps de réponse par endpoint
+- Taille des réponses (payload)
+- Nombre d’appels API
+
+**Outils :**
+- Chrome DevTools (Network)
+
+---
+
+### Indicateurs base de données
+- Type de scan (Seq Scan / Index Scan)
+- Temps d’exécution des requêtes
+- Nombre de lignes retournées
+- Buffers utilisés (cache / disque)
+
+**Outils :**
+- EXPLAIN (ANALYZE, BUFFERS)
+- DBeaver / PostgreSQL
+
+---
+
+## 11. Audit de la qualité du code et de l’architecture
+
+### Observations backend
+
+1. **Utilisation de `SELECT *`**
+   - Retourne toutes les colonnes, même celles non utilisées par le frontend.
+   - Impact direct sur la taille des réponses API.
+
+2. **Absence de pagination côté backend**
+   - Toutes les tâches sont renvoyées en une seule requête.
+   - Risque important de dégradation des performances avec la montée en charge.
+
+3. **Requête SQL de listing centralisée**
+   - La logique de récupération des tâches est simple mais peu évolutive.
+   - Manque de mécanismes pour limiter ou segmenter les données.
+
+---
+
+### Observations frontend
+
+1. **Rendu volumineux de la liste des tâches**
+   - Grand nombre de composants affichés simultanément.
+   - Coût élevé en rendering et recalculs de layout.
+
+2. **Charge JavaScript importante au chargement**
+   - Traitements synchrones visibles dans la timeline Performance.
+   - Blocage du thread principal (TBT élevé).
+
+3. **Couplage fort entre chargement des données et rendu**
+   - Le rendu dépend directement du volume de données retourné par l’API.
+   - Absence de mécanismes de limitation ou de rendu progressif.
+
+---
+
+## 12. Synthèse intermédiaire
+
+L’audit met en évidence que les principaux problèmes de performance ne sont pas liés à la latence réseau ou aux performances immédiates de la base de données, mais principalement :
+
+- au volume de données retournées par l’API,
+- au coût du rendu frontend,
+- et à l’absence de mécanismes de limitation (pagination, sélection de champs).
+
+Ces constats serviront de base pour la phase suivante, dédiée à la mise en place d’outils de suivi (monitoring) et aux optimisations applicatives.
 
 
 
