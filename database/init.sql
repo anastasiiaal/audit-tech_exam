@@ -38,7 +38,7 @@ CREATE TRIGGER update_tasks_updated_at BEFORE UPDATE ON tasks
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Insertion d'un utilisateur de test
--- Le hash bcrypt pour "password123" : $2b$10$K7YCkWX3H5x8rQ5YCkWX3eZGQxKvVxKvVxKvVxKvVxKvVxKvVxKvVu
+-- Le hash bcrypt pour "password123" : $2b$10$hu2yioi3FgY/t5lJvtyaZ.CdQG8hjk04mJx5bpwyU5PIeG9KJrlfK
 INSERT INTO users (email, password, name) VALUES 
-    ('test@example.com', '$2b$10$K7YCkWX3H5x8rQ5YCkWX3eZGQxKvVxKvVxKvVxKvVxKvVxKvVxKvVu', 'Utilisateur Test')
+    ('test@example.com', '$2b$10$hu2yioi3FgY/t5lJvtyaZ.CdQG8hjk04mJx5bpwyU5PIeG9KJrlfK', 'Utilisateur Test')
 ON CONFLICT (email) DO NOTHING;
