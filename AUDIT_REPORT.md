@@ -220,7 +220,7 @@ Ces éléments confirment que les problèmes de performance observés sur la pag
 
 ---
 
-### 7.1 Diagnostic intermédiaire
+### Diagnostic intermédiaire
 
 Sur la base des analyses Lighthouse, Performance et Network, on peut constater :
 - l’absence de mécanismes de limitation des données (pagination, filtrage côté backend),
@@ -229,3 +229,53 @@ Sur la base des analyses Lighthouse, Performance et Network, on peut constater :
 Ces constats orientent naturellement les optimisations à venir vers :
 - la réduction du volume de données retournées par l’API,
 - et l’optimisation du rendu et des composants frontend.
+
+---
+
+## 8. Analyse base de données - EXPLAIN ANALYZE sur la requête de listing
+
+La page "Liste des tâches" repose sur la requête suivante :
+
+```sql
+SELECT *
+FROM tasks
+ORDER BY created_at DESC;
+```
+Un EXPLAIN (ANALYZE, BUFFERS) a été réalisé afin d’analyser le plan d’exécution et d’identifier les coûts associés.
+
+![alt text](screenshots/3.1.png)
+
+#### Résultats principaux :
+
+- Lecture de la table via un Seq Scan (scan séquentiel complet).
+- Tri explicite sur created_at DESC effectué en mémoire (Sort Method: quicksort).
+- Environ 8000 lignes retournées.
+- Temps d’exécution faible (~4 ms), avec des buffers majoritairement en cache (shared hit).
+
+#### Impact global :
+
+- La requête renvoie l’intégralité des tâches, ce qui entraîne un volume de données très important transféré vers le frontend.
+- Ce volume provoque un coût élevé de parsing JSON et de rendu côté frontend, confirmé par les métriques Lighthouse et DevTools (TBT élevé, long tasks).
+
+
+
+
+
+
+-----
+
+# Les améliorations envisagées suite à l'audit
+1. **Ajouter une pagination côté backend** (`LIMIT/OFFSET` ou cursor) pour éviter de renvoyer toutes les tâches d’un coup.
+2. **Remplacer `SELECT *` par une sélection de colonnes utiles** pour réduire la taille de réponse (payload).
+3. **Ajouter un paramètre `limit` + tri côté API** (ex : `?limit=50&sort=created_at_desc`) pour maîtriser le volume par défaut.
+4. **Indexer `created_at`** pour accélérer le tri `ORDER BY created_at DESC`.
+5. **Indexer `status` (+ éventuellement `status, created_at`)** pour accélérer les filtres + tri combinés.
+6. **Optimiser la recherche `ILIKE`** (ex : extension `pg_trgm` + index GIN) pour rendre la recherche scalable.
+7. **Mettre en place une route “tasks summary” / “counts” dédiée** (au lieu de recalculer via gros listing) pour limiter les données/traitements.
+8. **Découper le rendu de la liste côté frontend** (componentisation + éviter les computations lourdes au mount).
+9. **Réduire les re-renders Vue** (watchers trop larges, computed non mémoïsés, props instables, clés `v-for` correctes).
+10. **Virtualiser la liste** (afficher seulement les éléments visibles) si beaucoup de tâches.
+11. **Debounce la recherche** pour éviter une requête à chaque frappe.
+12. **Mettre du cache HTTP léger** (ETag / Cache-Control) sur les endpoints de lecture peu changeants.
+13. **Ajouter un monitoring minimal** (latence par route, taux d’erreur, volume) via logs structurés + Grafana (Postgres/Loki).
+14. **Mettre des garde-fous** : taille max de réponse, pagination obligatoire au-delà d’un seuil.
