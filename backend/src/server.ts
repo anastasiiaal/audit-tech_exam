@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import authRoutes from "./routes/auth";
 import taskRoutes from "./routes/tasks";
 import dashboardRoutes from "./routes/dashboard";
+import { metricsMiddleware } from "./middleware/metrics";
 
 dotenv.config();
 
@@ -14,6 +15,7 @@ const PORT = process.env.PORT || 3000;
 // Middlewares de base
 app.use(cors());
 app.use(express.json());
+app.use(metricsMiddleware);
 
 // Routes
 app.use("/auth", authRoutes);
