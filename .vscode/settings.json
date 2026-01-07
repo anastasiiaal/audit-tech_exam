@@ -1,0 +1,28 @@
+{
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[vue]": {
+    "editor.defaultFormatter": "vue.volar"
+  },
+  "files.associations": {
+    "*.css": "css",
+    "*.vue": "vue"
+  },
+  "sqltools.connections": [
+    {
+      "name": "TaskWatch PostgreSQL",
+      "driver": "PostgreSQL",
+      "server": "localhost",
+      "port": 5432,
+      "database": "taskwatch",
+      "username": "taskwatch_user",
+      "password": "taskwatch_password"
+    }
+  ]
+}

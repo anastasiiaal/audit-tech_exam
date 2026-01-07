@@ -1,0 +1,57 @@
+version: "3.8"
+
+services:
+  # Base de données PostgreSQL
+  postgres:
+    image: postgres:16-alpine
+    container_name: taskwatch-postgres
+    environment:
+      POSTGRES_DB: taskwatch
+      POSTGRES_USER: taskwatch_user
+      POSTGRES_PASSWORD: taskwatch_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taskwatch_user -d taskwatch"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API
+  backend:
+    build: ./backend
+    container_name: taskwatch-backend
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: taskwatch
+      DB_USER: taskwatch_user
+      DB_PASSWORD: taskwatch_password
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    command: npm run dev
+
+  # Frontend SPA
+  frontend:
+    build: ./frontend
+    container_name: taskwatch-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    environment:
+      VITE_API_URL: http://localhost:3000
+
+volumes:
+  postgres_data:
